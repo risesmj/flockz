@@ -1,0 +1,373 @@
+#include "totvs.ch"
+
+//  1-cod produto
+//  2-local/armazem
+//  3-end retirada
+//  4-quant
+//  5-end destino
+//  6-ID palete
+//  7-fraciona palete
+//  8-serie nota orig
+//  9-nota orig
+// 10-item nota orig
+// 11-sequencial
+// 12-numseq
+// 13-id volume
+// 14-Lote
+// 15-Tipo de Estoque
+// 16-Quantidade Seg Unid
+Static	MAP_CODPRO	:= 1
+Static	MAP_LOCAL	:= 2
+Static	MAP_ENDORI	:= 3
+Static	MAP_QUANT	:= 4
+Static	MAP_ENDDES	:= 5
+Static	MAP_PALLET	:= 6
+Static	MAP_FRAPLT	:= 7
+Static	MAP_SERORI	:= 8
+Static	MAP_NOTAORI	:= 9
+Static	MAP_ITORIG	:= 10
+Static	MAP_SEQUENC	:= 11
+Static	MAP_NUMSEQ	:= 12
+Static	MAP_ETQVOL	:= 13
+Static	MAP_LOTCTL	:= 14
+Static	MAP_TPESTO	:= 15
+Static	MAP_QTDSEG	:= 16
+
+
+/*/{Protheus.doc} User Function $_name
+Calcula o mapa de apanhe
+@type  Function
+@author Flockz Generator
+@since $_since
+@return aRet, array, [1] - Erro, [2] - Mapa de apanhe, [3] - Recnos em lock
+/*/
+User Function $_name()
+	Local	aZ08		:= {} as array
+	Local	aLocks		:= {} as array
+	Local	cAliasIt	as character
+	Local   lRet        := .T. as logical
+
+    cOndSep := PARAMIXB[1]
+
+	Begin Sequence
+
+		If ! getItensOrder(cOndSep, @cAliasIt)
+			cError := "Não foi possível recuperar os itens do pedido de venda"
+			Break
+		EndIf
+
+		If ! validateBalance(@cError,@aLocks,@aZ08,cAliasIt)
+			Break
+		EndIf
+
+		Recover
+		lRet := .F.
+		u_FTUnlock(aLocks)
+
+	End Sequence
+
+	u_FTUnlock(aLocks)
+
+    aRet := {}
+    aAdd(aRet,cError)
+    aAdd(aRet,aZ08)
+    aAdd(aRet,aLocks)
+
+Return aRet
+
+/*/{Protheus.doc} validateBalance
+Prepara a tabela temporária com os itens que serão
+calculados o mapa.
+@type  Static Function
+@author Flockz Generator
+@since $_since
+@param cError, characters, referência do erro
+@param aZ08, array, referência do mapa gerado
+@param cAliasIt, characters, tabela temporária dos produtos solicitados
+@return lRet, logical, true ou false
+/*/
+Static Function getItensOrder(cOndSep as character, cAliasIt as character)
+	Local 	cQuery 		as character
+	Default	cAliasIt	:= ""
+
+	cAliasIt	:= getNextAlias()
+	cQuery := " SELECT C6_PRODUTO,"
+	cQuery += "        C6_LOCAL,"
+	cQuery += "        C6_LOTECTL,"
+	cQuery += "        C6_ZTPESTO,"
+	cQuery += "        C6_NUM,"
+	cQuery += "        Z58_CODCLI,"
+	cQuery += "        Z58_LOJCLI,"
+	cQuery += "        SUM(SC6.C6_QTDVEN) SOLICITADO"
+	cQuery += " FROM " + RetSqlTab("Z58") + " (NOLOCK)"
+	cQuery += " INNER JOIN " + RetSqlTab("SC6") + " (NOLOCK) ON (   C6_FILIAL = Z58.Z58_FILIAL"
+	cQuery += "                                                     AND C6_NUM = Z58.Z58_PEDIDO"
+	cQuery += "                                                     AND SC6.D_E_L_E_T_ = ' ')"
+	cQuery += " INNER JOIN " + RetSqlTab("SB1") + " (NOLOCK) ON (   B1_FILIAL = ' '"
+	cQuery += "                                                     AND B1_COD = C6_PRODUTO"
+	cQuery += "                                                     AND B1_RASTRO != 'L'"
+	cQuery += "                                                     AND SB1.D_E_L_E_T_ = ' ')"
+	cQuery += " WHERE " + RetSqlCond("Z58")
+	cQuery += " AND Z58_CODIGO = " + ValToSql(cOndSep)
+	cQuery += " GROUP BY    C6_PRODUTO,"
+	cQuery += "             C6_LOCAL,"
+	cQuery += "             C6_LOTECTL,"
+	cQuery += "             C6_NUM,"
+	cQuery += "             C6_ZTPESTO,"
+	cQuery += "        		Z58_CODCLI,"
+	cQuery += "        		Z58_LOJCLI"
+	cQuery += "	UNION ALL"
+	cQuery += " SELECT	Z45_CODPRO C6_PRODUTO,"
+	cQuery += "       	Z45_LOCAL C6_LOCAL,"
+	cQuery += "       	Z45_LOTCTL C6_LOTECTL,"
+	cQuery += " 	 	(SELECT TOP 1 C6_ZTPESTO"
+	cQuery += " 	 	FROM " + RetSqlName("SC6")
+	cQuery += " 	 	WHERE C6_FILIAL = Z45_FILIAL"
+	cQuery += " 	 	AND C6_NUM = Z45_PEDIDO"
+	cQuery += " 	 	AND C6_PRODUTO = Z45_CODPRO"
+	cQuery += " 	 	AND C6_LOCAL = Z45_LOCAL"
+	cQuery += " 	 	AND D_E_L_E_T_ =  ' ') C6_ZTPESTO,"
+	cQuery += "        	Z45_PEDIDO C6_NUM,"
+	cQuery += "        	Z58_CODCLI,"
+	cQuery += "        	Z58_LOJCLI,"
+	cQuery += "        	SUM(Z45.Z45_QUANT) SOLICITADO"
+	cQuery += " FROM " + RetSqlTab("Z58") + " (NOLOCK)"
+	cQuery += " INNER JOIN " + RetSqlTab("Z45") + " (NOLOCK) ON (   Z45_FILIAL = Z58.Z58_FILIAL"
+	cQuery += "                                                     AND Z45_PEDIDO = Z58.Z58_PEDIDO"
+	cQuery += "                                                     AND Z45.D_E_L_E_T_ = ' ')"
+	cQuery += " WHERE " + RetSqlCond("Z58")
+	cQuery += " AND Z58_CODIGO = " + ValToSql(cOndSep)
+	cQuery += " GROUP BY    Z45_CODPRO,"
+	cQuery += "             Z45_FILIAL,"
+	cQuery += "             Z45_LOCAL,"
+	cQuery += "             Z45_LOTCTL,"
+	cQuery += "             Z45_PEDIDO,"
+	cQuery += "        		Z58_CODCLI,"
+	cQuery += "        		Z58_LOJCLI"
+
+
+	MPSysOpenQuery(cQuery,cAliasIt)
+	(cAliasIt)->(dbGoTop())
+
+	If (cAliasIt)->( EoF() )
+		Return .F.
+	EndIf
+
+Return .T.
+
+/*/{Protheus.doc} validateBalance
+Valida o e resgata os paletes dos produtos solicitados
+@type  Static Function
+@author Flockz Generator
+@since $_since
+@param cError, characters, referência do erro
+@param aZ08, array, referência do mapa gerado
+@param cAliasIt, characters, tabela temporária dos produtos solicitados
+@return lRet, logical, true ou false
+/*/
+Static Function validateBalance(cError,aLocks,aZ08,cAliasIt)
+	Local	lRet	:= .T. as logical
+
+	While (cAliasIt)->( ! EoF() )
+
+		If ! calculateMap(@cError,aLocks,aZ08,(cAliasIt)->C6_NUM,(cAliasIt)->C6_PRODUTO,(cAliasIt)->C6_LOCAL,(cAliasIt)->C6_LOTECTL,(cAliasIt)->C6_ZTPESTO,(cAliasIt)->SOLICITADO,(cAliasIt)->Z58_CODCLI,(cAliasIt)->Z58_LOJCLI)
+			lRet := .F.
+			Exit
+		EndIf
+
+		(cAliasIt)->(dbSkip())
+
+	EndDo
+
+	(cAliasIt)->(dbCloseArea())
+
+Return lRet
+
+/*/{Protheus.doc} calculateMap
+Valida o saldo do produto/lote solicita e reserva os registros.
+@type Function
+@author Flockz Generator
+@since $_since
+@param cError, characters, referência do erro
+@param aLocks, array, registros em softlock
+@param aZ08, array, referência do mapa de apanhe
+@param cPedido, characters, número do pedido de venda
+@param cCodPro, characters, código de produto
+@param cLocal, characters, armazém
+@param cLoteCtl, characters, lote
+@param nQtdSolicitado, numerics, quantidade solicitada 
+@param cCodCli, characters, código do cliente
+@param cCodLoj, characters, loja do cliente
+@return lRet, logical, true ou false
+/*/
+Static Function calculateMap(cError,aLocks,aZ08,cPedido,cCodPro,cLocal,cLoteCtl,cTpEsto,nQtdSolicitado,cCodCli,cCodLoj)
+	Local	cQuery			as character
+	Local   cFraPlt         as character
+    Local   cAliasQry       as character
+	Local 	cEstFis 		as character
+	Local	lRet			as logical
+    Local   lVolJaDef       as logical
+    Local   lRastro         as logical
+	Local   nQtdMapa        as numeric
+	Default	cPedidoAtual	:= ""
+
+	//Inicializa as variáveis
+	lRet			:= .T.
+	cEstFis 		:= U_FtWmsParam("WMS_EXPEDICAO_MAPA_APANHE_ESTRUTURA_FISICA","C","000002/000003/000007/000010",.F.,"",cCodCli,cCodLoj,nil,nil)
+	cAliasQry		:= getNextAlias()
+	lRastro         := Posicione("SB1",1,xFilial("SB1")+cCodPro,"B1_RASTRO") == "L"
+    lVolJaDef       := U_FtWmsParam("WMS_EXPEDICAO_ESCOLHE_VOLUMES","L",.F.,.F.,nil,cCodCli,cCodLoj,nil,nil)
+
+	//Valida se há saldo disponível
+	cQuery := " SELECT  Z16_ETQPAL,"
+	cQuery += "         Z16_LOTCTL,"
+	cQuery += "         Z16_CODPRO,"
+	cQuery += "         Z16_ENDATU,"
+	cQuery += "         Z16_LOCAL,"
+	cQuery += "			Z16_TPESTO,"
+	cQuery += "         Z16_SALDO - (   SELECT ISNULL(Sum(Z08_QUANT), 0)"
+	cQuery += "                         FROM   " + RetSqlTab("Z08")
+	cQuery += "                         WHERE  " + RetSqlCond("Z08")
+	cQuery += "                         AND Z08_PALLET = Z16_ETQPAL"
+	cQuery += "                         AND Z08_PRODUT = Z16_CODPRO"
+	cQuery += "                         AND Z08_LOTCTL = Z16_LOTCTL"
+	cQuery += "                         AND Z08_STATUS != 'R'"
+	cQuery += "                         AND Z08_TPOPER = 'S'
+	cQuery += "                     ) SALDO"
+	cQuery += " FROM ("
+	cQuery += "     SELECT  Z16_ETQPAL,"
+	cQuery += "             Z16_LOTCTL,"
+	cQuery += "             Z16_CODPRO,"
+	cQuery += "             Z16_ENDATU,"
+	cQuery += "             Z16_LOCAL,"
+	cQuery += "				Z16_TPESTO,"
+	cQuery += "             SUM(Z16_SALDO) Z16_SALDO"
+	cQuery += "     FROM " + RetSqlTab("Z16")
+
+	If lRastro
+		cQuery += " INNER JOIN " + RetSqlTab("Z45") + " (NOLOCK) ON (   Z45_FILIAL = Z16_FILIAL"
+		cQuery += "                                                     AND Z45_ETQPAL = Z16_ETQPAL"
+		cQuery += "                                                     AND Z45_CODPRO = Z16_CODPRO"
+		cQuery += "                                                     AND Z45_LOTCTL = Z16_LOTCTL"
+        cQuery += "                                                     AND Z45_ENDATU = Z16_ENDATU"
+        cQuery += "                                                     AND Z45_LOCAL = Z16_LOCAL"
+		cQuery += "                                                     AND Z45_PEDIDO = " + ValToSql(cPedido)
+		cQuery += "                                                     AND Z45.D_E_L_E_T_ = ' ')"
+	EndIf
+
+	cQuery += "     INNER JOIN " + RetSqlTab("SBE") + " (NOLOCK) "
+	cQuery += "                ON " + RetSqlCond("SBE")
+	cQuery += "                   AND SBE.BE_LOCAL = Z16.Z16_LOCAL
+	cQuery += "                   AND SBE.BE_LOCALIZ = Z16.Z16_ENDATU
+	cQuery += "                   AND SBE.BE_STATUS != '3'
+	cQuery += "                   AND SBE.BE_ESTFIS IN " + FormatIn(cEstFis,"/")
+	cQuery += "     WHERE " + RetSqlCond("Z16")
+	cQuery += "     AND Z16_CODPRO = " + ValToSql(cCodPro)
+	cQuery += "     AND Z16_LOCAL = " + ValToSql(cLocal)
+	cQuery += "     AND Z16_TPESTO = " + ValToSql(cTpEsto)
+
+	//Não pode ser em SET
+	cQuery += " 	AND Z16_STATUS != 'S'"
+	cQuery += " 			   AND ("
+	cQuery += " 			       SELECT COUNT(DISTINCT Z16_CODPRO)"
+	cQuery += " 			       FROM " + RetSqlName("Z16") + " A (NOLOCK)"
+	cQuery += " 			       WHERE A.Z16_FILIAL = Z16.Z16_FILIAL"
+	cQuery += " 			       AND A.Z16_ENDATU = Z16.Z16_ENDATU"
+	cQuery += " 			       AND A.Z16_SALDO > 0"
+	cQuery += " 			       AND A.D_E_L_E_T_ = ' '"
+	cQuery += " 			   ) = 1"
+
+	If lRastro
+		cQuery += " AND Z16_LOTCTL = " + ValToSql(cLoteCtl)
+	EndIf
+
+	cQuery += "     AND Z16_SALDO > 0"
+	cQuery += "     AND (SELECT ISNULL(COUNT(DISTINCT( Z08_NUMOS )), 0)"
+	cQuery += "                 FROM   " + RetSqlTab("Z08")
+	cQuery += "                 WHERE  " + RetSqlCond("Z08")
+	cQuery += "                        AND Z08_PALLET = Z16.Z16_ETQPAL"
+	cQuery += "                        AND Z08_PRODUT = Z16.Z16_CODPRO"
+	cQuery += "                        AND Z08_STATUS != 'R'"
+	cQuery += "                        AND Z08_TPOPER = 'I') = 0"
+	cQuery += "     AND (SELECT ISNULL(COUNT(DISTINCT( Z21_IDENT )), 0) AS 'CTGZ21'"
+	cQuery += "                 FROM   " + RetSqlTab("Z21") + " (NOLOCK)"
+	cQuery += "                 WHERE  " + RetSqlCond("Z21")
+	cQuery += "                        AND Z21_PROD = Z16.Z16_CODPRO"
+	cQuery += "                        AND Z21_ETQPAL = Z16.Z16_ETQPAL"
+	cQuery += "                        AND Z21_IDENT IN (SELECT Z06_NUMOS"
+	cQuery += "                                          FROM   " + RetSqlTab("Z06") + " (NOLOCK)"
+	cQuery += "                                          WHERE	Z06_FILIAL = Z21_FILIAL
+	cQuery += "                                                 AND Z06_SERVIC = 'T02'"
+	cQuery += "                                                 AND Z06_NUMOS = Z21_IDENT"
+	cQuery += "                                                 AND D_E_L_E_T_ = ' '"
+	cQuery += "                                                 AND Z06_STATUS NOT IN ( 'FI', 'CA' ))) = 0"
+	cQuery += "     AND Z16_PEDIDO = ' '"
+	cQuery += "     AND Z16_TPESTO != 'XXXXXX'"
+	cQuery += "     AND Z16_ORIGEM != 'VOL'"
+	cQuery += " 	GROUP BY  	Z16_ETQPAL,"
+	cQuery += " 	          	Z16_LOTCTL, "
+	cQuery += " 	          	Z16_CODPRO, "
+	cQuery += " 	          	Z16_ENDATU, "
+	cQuery += " 	          	Z16_LOCAL, "
+	cQuery += "					Z16_TPESTO"
+	cQuery += " ) AS SUB"
+	cQuery += " ORDER BY Z16_ETQPAL"
+	MPSysOpenQuery(cQuery,cAliasQry)
+	(cAliasQry)->(dbGoTop())
+
+	While (cAliasQry)->( ! EoF() ) .and. nQtdSolicitado > 0
+
+		//Tenta reservar o palete, se não conseguir, utiliza outro
+		cQuery := " SELECT R_E_C_N_O_ RECNO"
+		cQuery += " FROM " + RetSqlTab("Z16") + " (NOLOCK)"
+		cQuery += " WHERE " + RetSqlCond("Z16")
+		cQuery += " AND Z16_ETQPAL = " + ValToSql((cAliasQry)->Z16_ETQPAL)
+		cQuery += " AND Z16_SALDO > 0"
+
+		If (cAliasQry)->SALDO > 0 .and. U_appLockFromQuery("Z16",cQuery,@aLocks)
+
+			//Se o solicitado for maior que o saldo do palete, resgata o palet inteiro
+			If nQtdSolicitado >= (cAliasQry)->SALDO
+				nQtdMapa 		:= (cAliasQry)->SALDO
+				cFraPlt     	:= "N"
+				nQtdSolicitado	-= (cAliasQry)->SALDO
+				//Caso contrário, resgata o palete fracionado
+			Else
+				nQtdMapa 		:= nQtdSolicitado
+				cFraPlt     	:= "S"
+				nQtdSolicitado	:= 0
+			EndIf
+
+			//Adiciona no mapa
+			aAdd(aZ08,Array(16))
+			aZ08[Len(aZ08)][MAP_CODPRO]		:= cCodPro
+			aZ08[Len(aZ08)][MAP_LOCAL]		:= (cAliasQry)->Z16_LOCAL
+			aZ08[Len(aZ08)][MAP_ENDORI]		:= (cAliasQry)->Z16_ENDATU
+			aZ08[Len(aZ08)][MAP_QUANT]		:= nQtdMapa
+			aZ08[Len(aZ08)][MAP_ENDDES]		:= ""
+			aZ08[Len(aZ08)][MAP_PALLET]		:= (cAliasQry)->Z16_ETQPAL
+			aZ08[Len(aZ08)][MAP_FRAPLT]		:= cFraPlt
+			aZ08[Len(aZ08)][MAP_SERORI]		:= ""
+			aZ08[Len(aZ08)][MAP_NOTAORI]	:= ""
+			aZ08[Len(aZ08)][MAP_ITORIG]		:= ""
+			aZ08[Len(aZ08)][MAP_SEQUENC]	:= ""
+			aZ08[Len(aZ08)][MAP_NUMSEQ]		:= ""
+			aZ08[Len(aZ08)][MAP_ETQVOL]		:= ""
+			aZ08[Len(aZ08)][MAP_LOTCTL]		:= (cAliasQry)->Z16_LOTCTL
+			aZ08[Len(aZ08)][MAP_TPESTO]		:= (cAliasQry)->Z16_TPESTO
+			aZ08[Len(aZ08)][MAP_QTDSEG]		:= 0
+
+		EndIf
+
+		(cAliasQry)->(dbSkip())
+
+	EndDo
+
+	(cAliasQry)->(dbCloseArea())
+
+	If nQtdSolicitado > 0
+		cError := "Não há saldo disponível para o produto " + cCodPro + ". Faltam " + cValToChar(nQtdSolicitado) + " de saldo."
+		lRet := .F.
+	EndIf
+
+Return lRet

@@ -1,0 +1,57 @@
+#include "totvs.ch"
+#include "tlpp-rest.th"
+
+#define FUNNAME_LOG "$_name"
+
+/*/{Protheus.doc} $_name
+Class REST API
+@author Flockz Generator
+@since $_since
+@version version
+/*/
+Class $_name
+
+	public  Method  New()
+
+	@GET("/route")
+    public  Method  get()
+
+EndClass
+
+Method  New() Class $_name
+Return
+
+/*/{Protheus.doc} get
+GET Route
+@author Flockz Generator
+@since $_since
+@return lRet, logical, AllwaysTrue
+/*/
+Method get() Class $_name
+	Local   cMessage    as character
+	Local   lOk         as logical
+	Local   lRet        as logical
+	Local   jParams     as json
+
+	lRet        := AllWaysTrue()
+	jParams     := oRest:getQueryRequest()
+	lOk         := .T.
+	cMessage    := ""
+
+	Begin Sequence
+
+		cMessage := "OK"
+
+		Recover
+		lOk := .F.
+		//Mensagem de erro default
+		If Empty(cMessage)
+			cMessage := ERROR_DEFAULT
+		EndIf
+
+	End Sequence
+
+	//Response
+	u_appSetJsonResponse(lOk,cMessage,cMessage,FUNNAME_LOG)
+
+Return lRet

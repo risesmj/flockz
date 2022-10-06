@@ -1,0 +1,15 @@
+#include "totvs.ch"
+
+/*/{Protheus.doc} $_name
+Class
+@author Flockz Generator
+@since $_since
+/*/
+Class $_name
+
+	public  Method  new()
+
+EndClass
+
+Method New() Class $_name
+Return

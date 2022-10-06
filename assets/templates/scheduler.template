@@ -1,0 +1,70 @@
+#include "totvs.ch"
+
+Static  N_TRY_JOB    := 2
+
+/*/{Protheus.doc} User Function $_name
+Scheduler
+@type Function
+@author Flockz Generator
+@since $_since
+/*/
+User Function $_name()
+	Local   cLockFile   as character
+	Local   cTaskId     as character
+	Local   nHdlJob     as numeric
+	Local   nX          as numeric
+
+	cLockFile   := ""
+	cTaskId     := FWGetIDTask()
+	nHdlJob     := 0
+
+	cLockFile := Lower("$_name" + cEmpAnt + cFilAnt + cTaskId) + ".lck"
+
+	For nX := 1 To N_TRY_JOB
+		If ! jobIsRunning(cLockFile)
+			nHdlJob := JobSetRunning(cLockFile,.T.)
+			If nHdlJob >= 0
+				ConOut("[$_name]["+FWTimeStamp(2)+"][INFO]: Iniciando processamento.")
+				fProcessar()
+				ConOut("[$_name]["+FWTimeStamp(2)+"][INFO]: Finalizando processamento.")
+			EndIf
+
+			jobSetRunning(cLockFile,.F.,nHdlJob)
+			Exit
+		Else
+			ConOut("[$_name]["+FWTimeStamp(2)+"][ERROR]: Thread em LOCK")
+			Sleep(3000)
+		EndIf
+	Next nX
+
+Return
+
+/*/{Protheus.doc} SchedDef
+SchedDef
+da rotina.
+@type Function
+@author Flockz Generator
+@since $_since
+@return aParams, array, Retorna as perguntas definidas no schedule.*/
+Static Function SchedDef()
+	Local aParams := {}
+	Local cPerg := PadR("PARAMDEF",10)
+
+	aParams := {;
+		"P"   ,; // Tipo R para relatorio P para processo
+	cPerg,; // Pergunte do relatorio, caso nao use passar ParamDef
+	nil   ,; // Alias
+	nil   ,; // Array de ordens
+	nil    } // Titulo
+
+Return aParams
+
+/*/{Protheus.doc} fProcessar
+Realiza o processamento do scheduler
+@type Function
+@author Flockz Generator
+@since $_since
+/*/
+Static Function fProcessar()
+
+Return
