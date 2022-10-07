@@ -7,10 +7,14 @@ class Help implements ICommand {
     print("----------------------------------------");
     print("-g : Generate file tlpp or prw.");
     print("Arguments");
-    print("# template: object, rest, scheduler, mvc-1 or mvc-2.");
+    print("# template: object, rest, scheduler or map-exp");
     print("# path: directory+file name + extension tlpp or prw");
     print("# procedure: procedure name");
-    print("* Example: flutz -g scheduler path/order procedure_test.tlpp");
+    print("* Example: flockz -g scheduler path/order procedure_test.tlpp");
+    print("----------------------------------------");
+    print("-t : Print details templates.");
+    print("No Arguments");
+    print("* Example: flockz -t");
   }
 
   @override

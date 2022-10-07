@@ -11,10 +11,16 @@ class Generate implements ICommand {
 
   @override
   execute() async {
+    if (!(_path.trim().toLowerCase().endsWith(".tlpp") ||
+        _path.trim().toLowerCase().endsWith(".prw"))) {
+      print("Error: Invalid extension, please inform .tlpp or .prw");
+      return;
+    }
+
     var content = _getTemplate();
 
     if (content.isEmpty) {
-      print("Content template is empty!");
+      print("Error: Content template is empty!");
       return;
     }
 
@@ -27,7 +33,7 @@ class Generate implements ICommand {
     final newFile = File(_path);
 
     if (newFile.existsSync()) {
-      print("File exists! Can't create file.");
+      print("Error: File exists! Can't create file.");
       return;
     }
 
@@ -40,7 +46,29 @@ class Generate implements ICommand {
     if (params.isNotEmpty) {
       _typeFile = params[0];
       _path = params.length >= 2 ? params[1] : "flockz.tlpp";
-      _name = params.length >= 3 ? params[2] : "FLOCKZ";
+
+      //verify name function, class...
+      try {
+        //try get name inform for user
+        if (params.length >= 3) {
+          _name = params[2];
+          //if not inform, get name on path
+        } else {
+          final aux = _path.split("/");
+
+          if (aux.isNotEmpty) {
+            final nameAux = aux.last.split(".").first;
+            _name = nameAux.trim();
+          }
+        }
+      } catch (e) {
+        print(
+            "Warning: Failed get name file, but not worry, maybe will be default 'FLOCKZ'");
+      }
+
+      if (_name.isEmpty) {
+        _name = "FLOCKZ";
+      }
     }
   }
 

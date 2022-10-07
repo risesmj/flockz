@@ -1,4 +1,4 @@
-#include "totvs.ch"
+Ôªø#include "totvs.ch"
 
 //  1-cod produto
 //  2-local/armazem
@@ -44,6 +44,7 @@ Calcula o mapa de apanhe
 User Function $_name()
 	Local	aZ08		:= {} as array
 	Local	aLocks		:= {} as array
+	Local	cError		:= "" as character
 	Local	cAliasIt	as character
 	Local   lRet        := .T. as logical
 
@@ -52,7 +53,7 @@ User Function $_name()
 	Begin Sequence
 
 		If ! getItensOrder(cOndSep, @cAliasIt)
-			cError := "N„o foi possÌvel recuperar os itens do pedido de venda"
+			cError := "N√£o foi poss√≠vel recuperar os itens do pedido de venda"
 			Break
 		EndIf
 
@@ -66,8 +67,6 @@ User Function $_name()
 
 	End Sequence
 
-	u_FTUnlock(aLocks)
-
     aRet := {}
     aAdd(aRet,cError)
     aAdd(aRet,aZ08)
@@ -76,14 +75,14 @@ User Function $_name()
 Return aRet
 
 /*/{Protheus.doc} validateBalance
-Prepara a tabela tempor·ria com os itens que ser„o
+Prepara a tabela tempor√°ria com os itens que ser√£o
 calculados o mapa.
 @type  Static Function
 @author Flockz Generator
 @since $_since
-@param cError, characters, referÍncia do erro
-@param aZ08, array, referÍncia do mapa gerado
-@param cAliasIt, characters, tabela tempor·ria dos produtos solicitados
+@param cError, characters, refer√™ncia do erro
+@param aZ08, array, refer√™ncia do mapa gerado
+@param cAliasIt, characters, tabela tempor√°ria dos produtos solicitados
 @return lRet, logical, true ou false
 /*/
 Static Function getItensOrder(cOndSep as character, cAliasIt as character)
@@ -160,9 +159,9 @@ Valida o e resgata os paletes dos produtos solicitados
 @type  Static Function
 @author Flockz Generator
 @since $_since
-@param cError, characters, referÍncia do erro
-@param aZ08, array, referÍncia do mapa gerado
-@param cAliasIt, characters, tabela tempor·ria dos produtos solicitados
+@param cError, characters, refer√™ncia do erro
+@param aZ08, array, refer√™ncia do mapa gerado
+@param cAliasIt, characters, tabela tempor√°ria dos produtos solicitados
 @return lRet, logical, true ou false
 /*/
 Static Function validateBalance(cError,aLocks,aZ08,cAliasIt)
@@ -188,15 +187,15 @@ Valida o saldo do produto/lote solicita e reserva os registros.
 @type Function
 @author Flockz Generator
 @since $_since
-@param cError, characters, referÍncia do erro
+@param cError, characters, refer√™ncia do erro
 @param aLocks, array, registros em softlock
-@param aZ08, array, referÍncia do mapa de apanhe
-@param cPedido, characters, n˙mero do pedido de venda
-@param cCodPro, characters, cÛdigo de produto
-@param cLocal, characters, armazÈm
+@param aZ08, array, refer√™ncia do mapa de apanhe
+@param cPedido, characters, n√∫mero do pedido de venda
+@param cCodPro, characters, c√≥digo de produto
+@param cLocal, characters, armaz√©m
 @param cLoteCtl, characters, lote
 @param nQtdSolicitado, numerics, quantidade solicitada 
-@param cCodCli, characters, cÛdigo do cliente
+@param cCodCli, characters, c√≥digo do cliente
 @param cCodLoj, characters, loja do cliente
 @return lRet, logical, true ou false
 /*/
@@ -206,19 +205,17 @@ Static Function calculateMap(cError,aLocks,aZ08,cPedido,cCodPro,cLocal,cLoteCtl,
     Local   cAliasQry       as character
 	Local 	cEstFis 		as character
 	Local	lRet			as logical
-    Local   lVolJaDef       as logical
     Local   lRastro         as logical
 	Local   nQtdMapa        as numeric
 	Default	cPedidoAtual	:= ""
 
-	//Inicializa as vari·veis
+	//Inicializa as vari√°veis
 	lRet			:= .T.
 	cEstFis 		:= U_FtWmsParam("WMS_EXPEDICAO_MAPA_APANHE_ESTRUTURA_FISICA","C","000002/000003/000007/000010",.F.,"",cCodCli,cCodLoj,nil,nil)
 	cAliasQry		:= getNextAlias()
 	lRastro         := Posicione("SB1",1,xFilial("SB1")+cCodPro,"B1_RASTRO") == "L"
-    lVolJaDef       := U_FtWmsParam("WMS_EXPEDICAO_ESCOLHE_VOLUMES","L",.F.,.F.,nil,cCodCli,cCodLoj,nil,nil)
 
-	//Valida se h· saldo disponÌvel
+	//Valida se h√° saldo dispon√≠vel
 	cQuery := " SELECT  Z16_ETQPAL,"
 	cQuery += "         Z16_LOTCTL,"
 	cQuery += "         Z16_CODPRO,"
@@ -266,17 +263,6 @@ Static Function calculateMap(cError,aLocks,aZ08,cPedido,cCodPro,cLocal,cLoteCtl,
 	cQuery += "     AND Z16_LOCAL = " + ValToSql(cLocal)
 	cQuery += "     AND Z16_TPESTO = " + ValToSql(cTpEsto)
 
-	//N„o pode ser em SET
-	cQuery += " 	AND Z16_STATUS != 'S'"
-	cQuery += " 			   AND ("
-	cQuery += " 			       SELECT COUNT(DISTINCT Z16_CODPRO)"
-	cQuery += " 			       FROM " + RetSqlName("Z16") + " A (NOLOCK)"
-	cQuery += " 			       WHERE A.Z16_FILIAL = Z16.Z16_FILIAL"
-	cQuery += " 			       AND A.Z16_ENDATU = Z16.Z16_ENDATU"
-	cQuery += " 			       AND A.Z16_SALDO > 0"
-	cQuery += " 			       AND A.D_E_L_E_T_ = ' '"
-	cQuery += " 			   ) = 1"
-
 	If lRastro
 		cQuery += " AND Z16_LOTCTL = " + ValToSql(cLoteCtl)
 	EndIf
@@ -317,7 +303,7 @@ Static Function calculateMap(cError,aLocks,aZ08,cPedido,cCodPro,cLocal,cLoteCtl,
 
 	While (cAliasQry)->( ! EoF() ) .and. nQtdSolicitado > 0
 
-		//Tenta reservar o palete, se n„o conseguir, utiliza outro
+		//Tenta reservar o palete, se n√£o conseguir, utiliza outro
 		cQuery := " SELECT R_E_C_N_O_ RECNO"
 		cQuery += " FROM " + RetSqlTab("Z16") + " (NOLOCK)"
 		cQuery += " WHERE " + RetSqlCond("Z16")
@@ -331,7 +317,7 @@ Static Function calculateMap(cError,aLocks,aZ08,cPedido,cCodPro,cLocal,cLoteCtl,
 				nQtdMapa 		:= (cAliasQry)->SALDO
 				cFraPlt     	:= "N"
 				nQtdSolicitado	-= (cAliasQry)->SALDO
-				//Caso contr·rio, resgata o palete fracionado
+				//Caso contr√°rio, resgata o palete fracionado
 			Else
 				nQtdMapa 		:= nQtdSolicitado
 				cFraPlt     	:= "S"
@@ -366,7 +352,7 @@ Static Function calculateMap(cError,aLocks,aZ08,cPedido,cCodPro,cLocal,cLoteCtl,
 	(cAliasQry)->(dbCloseArea())
 
 	If nQtdSolicitado > 0
-		cError := "N„o h· saldo disponÌvel para o produto " + cCodPro + ". Faltam " + cValToChar(nQtdSolicitado) + " de saldo."
+		cError := "N√£o h√° saldo dispon√≠vel para o produto " + cCodPro + ". Faltam " + cValToChar(nQtdSolicitado) + " de saldo."
 		lRet := .F.
 	EndIf
 

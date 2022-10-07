@@ -1,5 +1,7 @@
 class CommandLine {
   static const generate = "-g";
+  static const showAllTemplates = "-t";
+  static const help = "help";
 }
 
 class Templates {
